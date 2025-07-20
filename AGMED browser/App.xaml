@@ -4,7 +4,8 @@
              xmlns:local="clr-namespace:AGMED_browser"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
- 
+        
+
     </Application.Resources>
     
 </Application>
