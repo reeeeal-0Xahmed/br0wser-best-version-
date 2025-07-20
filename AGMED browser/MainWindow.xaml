@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:AGMED_browser"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="AGMED Browser" 
+        Title="Br0wser" 
         Height="800" Width="1200" 
         WindowStartupLocation="CenterScreen"
         Background="#FF252526">
