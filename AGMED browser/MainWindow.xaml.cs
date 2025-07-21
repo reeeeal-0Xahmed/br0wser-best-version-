@@ -9,7 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
-namespace WpfBrowser
+namespace br0wser
 {
     public partial class MainWindow : Window
     {
@@ -22,7 +22,7 @@ namespace WpfBrowser
             InitializeComponent();
             bookmarksList.ItemsSource = _bookmarks;
             LoadBookmarks();
-            InitializeNewTab("https://www.bing.com");
+            InitializeNewTab("https://www.google.com");
         }
 
         private void InitializeNewTab(string url = null)
@@ -84,7 +84,7 @@ namespace WpfBrowser
         }
 
         private void Go_Click(object sender, RoutedEventArgs e) => NavigateToAddress();
-        private void NewTab_Click(object sender, RoutedEventArgs e) => InitializeNewTab("https://www.bing.com");
+        private void NewTab_Click(object sender, RoutedEventArgs e) => InitializeNewTab("https://www.google.com");
 
         private void Back_Click(object sender, RoutedEventArgs e)
         {
