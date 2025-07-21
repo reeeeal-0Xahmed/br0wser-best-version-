@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36221.1 d17.14
+VisualStudioVersion = 17.14.36221.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AGMED browser", "AGMED browser\AGMED browser.csproj", "{3AB591D0-3A01-40E0-BBF3-5FDF8D507309}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "br0wser", "AGMED browser\br0wser.csproj", "{3AB591D0-3A01-40E0-BBF3-5FDF8D507309}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

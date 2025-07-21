@@ -1,287 +1,195 @@
-﻿using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.Wpf;
+﻿using Microsoft.Web.WebView2.Wpf;
+using Microsoft.Web.WebView2.Core;
 using System;
-using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
-namespace AGMED_browser
+namespace WpfBrowser
 {
     public partial class MainWindow : Window
     {
-        public class BrowserTab
-        {
-            public string Header { get; set; }
-            public WebView2 WebView { get; set; }
-        }
-
-        public class Bookmark
-        {
-            public string Title { get; set; }
-            public string Url { get; set; }
-        }
-
-        private const string HomePage = "https://www.google.com";
-        private const string BookmarksFile = "bookmarks.json";
-        private readonly string _userDataFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AGMED_Browser");
-
-        private List<Bookmark> _bookmarks = new List<Bookmark>();
         private BrowserTab _currentTab;
+        private ObservableCollection<BookmarkItem> _bookmarks = new ObservableCollection<BookmarkItem>();
+        private string bookmarksFile = "bookmarks.json";
 
         public MainWindow()
         {
             InitializeComponent();
-            Loaded += OnWindowLoaded;
+            bookmarksList.ItemsSource = _bookmarks;
             LoadBookmarks();
-            InitializeNewTab();
-        }
-
-        private async void OnWindowLoaded(object sender, RoutedEventArgs e)
-        {
-            
-        }
-
-        private async System.Threading.Tasks.Task InitializeWebViewAsync(WebView2 webView)
-        {
-            try
-            {
-                var environment = await CoreWebView2Environment.CreateAsync(
-                    userDataFolder: _userDataFolder);
-
-                await webView.EnsureCoreWebView2Async(environment);
-                webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
-                webView.CoreWebView2.Navigate(HomePage);
-
-                webView.NavigationStarting += WebView_NavigationStarting;
-                webView.NavigationCompleted += WebView_NavigationCompleted;
-                webView.CoreWebView2.HistoryChanged += WebView_HistoryChanged;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to initialize WebView2: {ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            InitializeNewTab("https://www.bing.com");
         }
 
         private void InitializeNewTab(string url = null)
         {
             var webView = new WebView2();
-            webView.Tag = tabControl.Items.Count + 1;
+            var tabItem = new TabItem { Header = "New Tab" };
 
-            var newTab = new BrowserTab
+            var browserTab = new BrowserTab
             {
-                Header = "New Tab",
-                WebView = webView
+                WebView = webView,
+                TabItem = tabItem
             };
 
-            tabControl.Items.Add(newTab);
-            tabControl.SelectedItem = newTab;
-            _currentTab = newTab;
+            tabItem.Content = webView;
+            tabItem.Tag = browserTab;
+            tabControl.Items.Add(tabItem);
+            tabControl.SelectedItem = tabItem;
+            _currentTab = browserTab;
 
-            webViewContainer.Children.Clear();
-            webViewContainer.Children.Add(webView);
+            webView.NavigationCompleted += (s, e) =>
+            {
+                string title = webView.CoreWebView2?.DocumentTitle;
+                browserTab.TabItem.Header = string.IsNullOrWhiteSpace(title) ? "New Tab" : title;
+                addressBar.Text = webView.Source?.AbsoluteUri ?? string.Empty;
+            };
 
-            if (!string.IsNullOrEmpty(url))
+            webView.CoreWebView2InitializationCompleted += (s, e) =>
             {
-                webView.Source = new Uri(url);
-            }
-            else
-            {
-                _ = InitializeWebViewAsync(webView);
-            }
-        }
-
-        private void LoadBookmarks()
-        {
-            try
-            {
-                if (File.Exists(BookmarksFile))
+                if (!string.IsNullOrEmpty(url))
                 {
-                    var json = File.ReadAllText(BookmarksFile);
-                    _bookmarks = System.Text.Json.JsonSerializer.Deserialize<List<Bookmark>>(json);
+                    webView.CoreWebView2.Navigate(url);
+                    webView.CoreWebView2.NewWindowRequested += (s2, e2) =>
+                    {
+                        e2.Handled = true;
+                        _currentTab.WebView.CoreWebView2.Navigate(e2.Uri);
+                    };
                 }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to load bookmarks: {ex.Message}");
-            }
-        }
+            };
 
-        private void SaveBookmarks()
-        {
-            try
-            {
-                var json = System.Text.Json.JsonSerializer.Serialize(_bookmarks);
-                File.WriteAllText(BookmarksFile, json);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to save bookmarks: {ex.Message}");
-            }
-        }
-
-        private void UpdateNavigationButtons()
-        {
-            if (_currentTab?.WebView?.CoreWebView2 == null) return;
-
-            Dispatcher.Invoke(() =>
-            {
-                btnBack.IsEnabled = _currentTab.WebView.CoreWebView2.CanGoBack;
-                btnForward.IsEnabled = _currentTab.WebView.CoreWebView2.CanGoForward;
-                txtAddress.Text = _currentTab.WebView.Source?.ToString() ?? "";
-                _currentTab.Header = _currentTab.WebView.CoreWebView2.DocumentTitle ?? "New Tab";
-            });
+            _ = webView.EnsureCoreWebView2Async();
         }
 
         private void NavigateToAddress()
         {
-            if (_currentTab?.WebView?.CoreWebView2 == null) return;
-
-            var address = txtAddress.Text.Trim();
-            if (string.IsNullOrWhiteSpace(address)) return;
-
-            if (!Uri.TryCreate(address, UriKind.Absolute, out Uri uri))
+            if (_currentTab?.WebView?.CoreWebView2 != null)
             {
-                address = address.Contains(".") && !address.Contains(" ")
-                    ? $"https://{address}"
-                    : $"https://www.google.com/search?q={Uri.EscapeDataString(address)}";
-            }
+                string address = addressBar.Text.Trim();
+                if (!address.StartsWith("http"))
+                    address = "https://www.google.com/search?q=" + Uri.EscapeDataString(address);
 
-            _currentTab.WebView.CoreWebView2.Navigate(address);
-        }
-
-        private void DeleteBookmark_Click(object sender, RoutedEventArgs e)
-        {
-            if (((Button)sender).Tag is Bookmark bookmarkToDelete)
-            {
-                _bookmarks.Remove(bookmarkToDelete);
-                SaveBookmarks();
-                bookmarksList.ItemsSource = null;
-                bookmarksList.ItemsSource = _bookmarks;
-                e.Handled = true;
+                _currentTab.WebView.CoreWebView2.Navigate(address);
             }
         }
 
-        #region Event Handlers
-        private void WebView_NavigationStarting(object sender, CoreWebView2NavigationStartingEventArgs e)
+        private void AddressBar_KeyDown(object sender, KeyEventArgs e)
         {
-            Dispatcher.Invoke(() =>
-            {
-                lblStatus.Text = "Loading...";
-                progressBar.Visibility = Visibility.Visible;
-                progressBar.IsIndeterminate = true;
-            });
+            if (e.Key == Key.Enter)
+                NavigateToAddress();
         }
 
-        private void WebView_NavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
+        private void Go_Click(object sender, RoutedEventArgs e) => NavigateToAddress();
+        private void NewTab_Click(object sender, RoutedEventArgs e) => InitializeNewTab("https://www.bing.com");
+
+        private void Back_Click(object sender, RoutedEventArgs e)
         {
-            Dispatcher.Invoke(() =>
-            {
-                lblStatus.Text = "Done";
-                progressBar.Visibility = Visibility.Collapsed;
-                UpdateNavigationButtons();
-            });
+            if (_currentTab?.WebView?.CanGoBack == true)
+                _currentTab.WebView.GoBack();
         }
 
-        private void WebView_HistoryChanged(object sender, object e)
+        private void Forward_Click(object sender, RoutedEventArgs e)
         {
-            UpdateNavigationButtons();
+            if (_currentTab?.WebView?.CanGoForward == true)
+                _currentTab.WebView.GoForward();
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (tabControl.SelectedItem is BrowserTab selectedTab)
+            if (tabControl.SelectedItem is TabItem selected && selected.Tag is BrowserTab browserTab)
             {
-                _currentTab = selectedTab;
-                webViewContainer.Children.Clear();
-                webViewContainer.Children.Add(selectedTab.WebView);
-                UpdateNavigationButtons();
+                _currentTab = browserTab;
+                addressBar.Text = _currentTab.WebView.Source?.AbsoluteUri ?? string.Empty;
+            }
+        }
+
+        private void AddBookmark_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentTab?.WebView?.CoreWebView2 != null)
+            {
+                string url = _currentTab.WebView.Source?.AbsoluteUri;
+                string title = _currentTab.WebView.CoreWebView2.DocumentTitle;
+                if (!string.IsNullOrWhiteSpace(url) && !_bookmarks.Any(b => b.Url == url))
+                {
+                    _bookmarks.Add(new BookmarkItem { Url = url, Title = title });
+                    SaveBookmarks();
+                }
+            }
+        }
+
+        private void RemoveBookmark_Click(object sender, RoutedEventArgs e)
+        {
+            if (bookmarksList.SelectedItem is BookmarkItem selected)
+            {
+                _bookmarks.Remove(selected);
+                SaveBookmarks();
+            }
+        }
+
+        private void ToggleBookmarks_Click(object sender, RoutedEventArgs e)
+        {
+            BookmarksPopup.IsOpen = !BookmarksPopup.IsOpen;
+        }
+
+        private void BookmarksList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (bookmarksList.SelectedItem is BookmarkItem selected)
+            {
+                addressBar.Text = selected.Url;
+                NavigateToAddress();
             }
         }
 
         private void CloseTab_Click(object sender, RoutedEventArgs e)
         {
-            if (((Button)sender).Tag is BrowserTab tabToClose)
+            if (_currentTab?.TabItem != null)
+            {
+                tabControl.Items.Remove(_currentTab.TabItem);
+                if (tabControl.Items.Count > 0)
+                    tabControl.SelectedIndex = 0;
+                else
+                    _currentTab = null;
+            }
+        }
+
+        private void SaveBookmarks()
+        {
+            var json = JsonSerializer.Serialize(_bookmarks);
+            File.WriteAllText(bookmarksFile, json);
+        }
+
+        private void LoadBookmarks()
+        {
+            if (File.Exists(bookmarksFile))
             {
                 try
                 {
-                    tabToClose.WebView?.CoreWebView2?.ExecuteScriptAsync("document.querySelectorAll('video,audio').forEach(media => media.pause());");
-                    tabToClose.WebView?.CoreWebView2?.Stop();
-                    tabToClose.WebView?.Dispose();
+                    var json = File.ReadAllText(bookmarksFile);
+                    var loaded = JsonSerializer.Deserialize<ObservableCollection<BookmarkItem>>(json);
+                    if (loaded != null)
+                    {
+                        foreach (var item in loaded)
+                            _bookmarks.Add(item);
+                    }
                 }
                 catch { }
-
-                if (tabControl.Items.Count == 1)
-                {
-                    InitializeNewTab();
-                }
-
-                tabControl.Items.Remove(tabToClose);
-                e.Handled = true;
             }
         }
+    }
 
-        private void btnBack_Click(object sender, RoutedEventArgs e) => _currentTab?.WebView?.CoreWebView2?.GoBack();
-        private void btnForward_Click(object sender, RoutedEventArgs e) => _currentTab?.WebView?.CoreWebView2?.GoForward();
-        private void btnRefresh_Click(object sender, RoutedEventArgs e) => _currentTab?.WebView?.CoreWebView2?.Reload();
-        private void btnHome_Click(object sender, RoutedEventArgs e) => _currentTab?.WebView?.CoreWebView2?.Navigate(HomePage);
-        private void btnGo_Click(object sender, RoutedEventArgs e) => NavigateToAddress();
+    public class BrowserTab
+    {
+        public WebView2 WebView { get; set; }
+        public TabItem TabItem { get; set; }
+    }
 
-        private void txtAddress_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter) NavigateToAddress();
-        }
-
-        private void btnNewTab_Click(object sender, RoutedEventArgs e) => InitializeNewTab();
-
-        private void btnBookmark_Click(object sender, RoutedEventArgs e)
-        {
-            if (_currentTab?.WebView?.Source != null)
-            {
-                var url = _currentTab.WebView.Source.ToString();
-                var title = _currentTab.WebView.CoreWebView2?.DocumentTitle ?? url;
-
-                if (!_bookmarks.Any(b => b.Url == url))
-                {
-                    _bookmarks.Add(new Bookmark { Title = title, Url = url });
-                    SaveBookmarks();
-                    MessageBox.Show("Bookmark added!", "Bookmark", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    MessageBox.Show("This page is already bookmarked!", "Bookmark", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-        }
-
-        private void btnShowBookmarks_Click(object sender, RoutedEventArgs e)
-        {
-            bookmarksList.ItemsSource = _bookmarks;
-            bookmarksPopup.IsOpen = true;
-        }
-
-        private void BookmarksList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
-        {
-            if (e.OriginalSource is TextBlock && bookmarksList.SelectedItem is Bookmark selectedBookmark)
-            {
-                InitializeNewTab(selectedBookmark.Url);
-                bookmarksPopup.IsOpen = false;
-            }
-        }
-        #endregion
-
-        protected override void OnClosed(EventArgs e)
-        {
-            foreach (BrowserTab tab in tabControl.Items)
-            {
-                tab.WebView?.Dispose();
-            }
-            base.OnClosed(e);
-        }
+    public class BookmarkItem
+    {
+        public string Url { get; set; }
+        public string Title { get; set; }
     }
 }
