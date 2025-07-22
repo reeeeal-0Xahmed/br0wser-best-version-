@@ -20,7 +20,7 @@
 
 1. حمل المشروع أو اعمل clone:
    ```bash
-   git clone https://github.com/yourusername/agmed-browser.git
+   [git clone https://github.com/yourusername/agmed-browser.git](https://github.com/reeeeal-0Xahmed/AGMED-browser.git)
    ```
 
 2. افتح الملف `AGMEDBrowser.sln` باستخدام Visual Studio
